@@ -1,0 +1,33 @@
+name: EL changelog mirror
+# Mirrors the ElevenLabs changelog RSS into this public repo so the weekly cloud
+# watcher (which cannot reach elevenlabs.io from its sandbox - CONNECT 403) reads it
+# from raw.githubusercontent.com instead. Watcher: routine trig_01CT4BR6zxjdANGQeTfw4xDH,
+# Tuesdays 07:00 UTC. This refreshes Mondays + Tuesdays 06:30 UTC.
+on:
+  schedule:
+    - cron: "30 6 * * 1"
+    - cron: "30 6 * * 2"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch RSS
+        run: |
+          set -e
+          mkdir -p el-changelog
+          curl -sS --max-time 60 -A "teckel-el-changelog-mirror" \
+            https://elevenlabs.io/docs/changelog.rss -o el-changelog/changelog.rss.new
+          grep -q "<rss" el-changelog/changelog.rss.new
+          mv el-changelog/changelog.rss.new el-changelog/changelog.rss
+          date -u +%Y-%m-%dT%H:%M:%SZ > el-changelog/fetched_at.txt
+      - name: Commit if changed
+        run: |
+          git config user.name "el-changelog-mirror"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add el-changelog/
+          git diff --cached --quiet || git commit -m "EL changelog mirror refresh"
+          git push
